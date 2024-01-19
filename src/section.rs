@@ -8,12 +8,10 @@ where
 {
     match bytes.len() {
         2 => {
-            // Convert the byte array to T (either u16 or other types)
             let value = u16::from_le_bytes(bytes.try_into().unwrap());
             value.into()
         }
         4 => {
-            // Convert the byte array to T (either u32 or other types)
             let value = u32::from_le_bytes(bytes.try_into().unwrap());
             value.into()
         }
