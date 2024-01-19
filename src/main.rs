@@ -2,16 +2,11 @@
 #![allow(dead_code)]
 mod section;
 mod types;
+mod byte_reader;
 
 use crate::section::read_sections;
-use crate::types::VariableBits;
+use crate::types::{VariableBits, Bits};
 use std::fs;
-
-#[derive(Debug)]
-pub enum Bits {
-    B64,
-    B32,
-}
 
 #[derive(Debug)]
 enum Endian {

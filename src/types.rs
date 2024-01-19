@@ -25,3 +25,9 @@ impl From<&[u8]> for VariableBits {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum Bits {
+    B64,
+    B32,
+}
