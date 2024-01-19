@@ -1,12 +1,14 @@
 // reference: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
 #![allow(dead_code)]
-mod bytes;
+mod section;
+mod types;
 
-use crate::bytes::*;
+use crate::section::read_sections;
+use crate::types::VariableBits;
 use std::fs;
 
 #[derive(Debug)]
-enum Bits {
+pub enum Bits {
     B64,
     B32,
 }
@@ -37,9 +39,9 @@ struct Elf {
     endian: Endian,
     ty: ElfType,
     inst_set: InstructionSet,
-    entry_addr: Vec<u8>,
-    prog_header_off: usize, // program header offset
-    sec_header_off: usize,  // section header offset
+    entry_addr: VariableBits,
+    prog_header_off: VariableBits, // program header offset
+    sec_header_off: VariableBits,  // section header offset
     flags: u32,             // platform specific, may not even need?
     file_header_size: u16,
     prog_header_size: u16,
@@ -86,46 +88,47 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     };
 
     let entry_addr = match bits {
-        Bits::B64 => Vec::from(&bytes[0x18..0x20]),
-        Bits::B32 => Vec::from(&bytes[0x18..0x1C]),
+        Bits::B64 => VariableBits::from(&bytes[0x18..0x20]),
+        Bits::B32 => VariableBits::from(&bytes[0x18..0x1C]),
     };
 
     let prog_header_off = match bits {
-        Bits::B64 => as_u64_le(&bytes[0x20..0x28]),
-        Bits::B32 => as_u64_le(&bytes[0x1C..0x20]),
-    } as usize;
+        Bits::B64 => VariableBits::from(&bytes[0x20..0x28]),
+        Bits::B32 => VariableBits::from(&bytes[0x1C..0x20]),
+    };
 
     let sec_header_off = match bits {
-        Bits::B64 => as_u64_le(&bytes[0x28..0x30]),
-        Bits::B32 => as_u64_le(&bytes[0x20..0x24]),
-    } as usize;
+        Bits::B64 => VariableBits::from(&bytes[0x28..0x30]),
+        Bits::B32 => VariableBits::from(&bytes[0x20..0x24]),
+    };
 
     let mut offset = match bits {
         Bits::B64 => 0x30,
         Bits::B32 => 0x24,
     };
 
-    let flags = as_u32_le(&bytes[offset..offset + 4]);
+    let flags = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
     offset += 4;
 
-    let file_header_size = as_u16_le(&bytes[offset..offset + 2]);
+    let file_header_size = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
     offset += 2;
-    let prog_header_size = as_u16_le(&bytes[offset..offset + 2]);
+    let prog_header_size = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
     offset += 2;
-    let prog_entries = as_u16_le(&bytes[offset..offset + 2]);
+    let prog_entries = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
     offset += 2;
-    let sec_header_size = as_u16_le(&bytes[offset..offset + 2]);
+    let sec_header_size = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
     offset += 2;
-    let sec_entries = as_u16_le(&bytes[offset..offset + 2]);
+    let sec_entries = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
     offset += 2;
-    let sec_names_idx = as_u16_le(&bytes[offset..offset + 2]);
-    offset += 2;
+    let sec_names_idx = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
 
-    for _ in 0..sec_entries {
-        let header = &bytes[offset..offset + sec_header_size as usize];
-        println!("{:?}", header);
-        offset += sec_header_size as usize;
-    }
+    read_sections(
+        &bytes[sec_header_off.usize()..],
+        sec_entries,
+        sec_header_size,
+        sec_names_idx,
+        &bits,
+    );
 
     Elf {
         bits,
