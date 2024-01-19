@@ -1,23 +1,8 @@
 use crate::byte_reader::ByteReader;
 use crate::types::Bits;
 use crate::types::VariableBits;
+use crate::types::FromBytes;
 
-fn convert_bytes<T>(bytes: &[u8]) -> T
-where
-    T: From<u16> + From<u32> + TryInto<u16> + TryInto<u32>,
-{
-    match bytes.len() {
-        2 => {
-            let value = u16::from_le_bytes(bytes.try_into().unwrap());
-            value.into()
-        }
-        4 => {
-            let value = u32::from_le_bytes(bytes.try_into().unwrap());
-            value.into()
-        }
-        _ => panic!("Unsupported byte array length"),
-    }
-}
 
 struct SectionHeader {
     sh_name: u32,
@@ -27,8 +12,8 @@ struct SectionHeader {
 
 fn make_section(bytes: &[u8], bits: &Bits) -> SectionHeader {
     let mut reader = ByteReader::new(bytes, bits);
-    let sh_name = convert_bytes::<u32>(reader.read(4));
-    let sh_type = convert_bytes::<u32>(reader.read(4));
+    let sh_name = reader.read(4, u32::from_bytes);
+    let sh_type = reader.read(4, u32::from_bytes);
     let sh_flags = reader.word();
 
     SectionHeader {

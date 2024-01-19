@@ -1,11 +1,12 @@
 // reference: https://en.wikipedia.org/wiki/Executable_and_Linkable_Format
 #![allow(dead_code)]
+mod byte_reader;
 mod section;
 mod types;
-mod byte_reader;
 
+use crate::byte_reader::ByteReader;
 use crate::section::read_sections;
-use crate::types::{VariableBits, Bits};
+use crate::types::{Bits, FromBytes, VariableBits};
 use std::fs;
 
 #[derive(Debug)]
@@ -37,7 +38,7 @@ struct Elf {
     entry_addr: VariableBits,
     prog_header_off: VariableBits, // program header offset
     sec_header_off: VariableBits,  // section header offset
-    flags: u32,             // platform specific, may not even need?
+    flags: u32,                    // platform specific, may not even need?
     file_header_size: u16,
     prog_header_size: u16,
     prog_entries: u16,
@@ -58,17 +59,29 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
         _ => panic!("bits unrecoginzed"),
     };
 
-    let endian = match bytes[0x5] {
+    let mut reader = ByteReader::new(&bytes[5..], &bits);
+
+    let endian = match reader.byte() {
         0x1 => Endian::Little,
         0x2 => Endian::Big,
         _ => panic!("bits unrecoginzed"),
     };
 
-    if bytes[0x7] != 0x3 && bytes[0x7] != 0x0 {
+    // version is always 1
+    // 0x6
+    if reader.byte() != 0x1 {
+        panic!("somehow elf version isnt 1")
+    }
+
+    // 0x7
+    let platform = reader.byte();
+    if platform != 0x3 && platform != 0x0 {
         panic!("only support linux");
     }
 
-    let ty = match bytes[0x10] {
+    let _abi_version_and_padding = reader.read_raw(8);
+    // 0x10, 0x11
+    let ty = match reader.read(2, u16::from_bytes) {
         0x0 => ElfType::None,
         0x1 => ElfType::Rel,
         0x2 => ElfType::Exec,
