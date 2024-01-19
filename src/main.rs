@@ -119,8 +119,13 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     let sec_entries = as_u16_le(&bytes[offset..offset + 2]);
     offset += 2;
     let sec_names_idx = as_u16_le(&bytes[offset..offset + 2]);
+    offset += 2;
 
-    println!("{:?}", &bytes[sec_header_off..]);
+    for _ in 0..sec_entries {
+        let header = &bytes[offset..offset + sec_header_size as usize];
+        println!("{:?}", header);
+        offset += sec_header_size as usize;
+    }
 
     Elf {
         bits,
