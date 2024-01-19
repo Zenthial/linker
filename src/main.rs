@@ -4,11 +4,10 @@ mod byte_reader;
 mod section;
 mod types;
 
-use section::SectionHeader;
-
 use crate::byte_reader::ByteReader;
-use crate::section::read_sections;
+use crate::section::{read_sections, Section};
 use crate::types::{Bits, FromBytes, VariableBits};
+
 use std::fs;
 
 #[derive(Debug)]
@@ -57,8 +56,7 @@ struct FileHeader {
 #[derive(Debug)]
 struct Elf {
     header: FileHeader,
-    sections: Vec<SectionHeader>,
-    shstr_data: Vec<u8>,
+    sections: Vec<Section>,
 }
 
 fn read_elf(bytes: Vec<u8>) -> Elf {
@@ -138,10 +136,11 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     // 0x30 or 0x3C
     let sec_entries = reader.read(2, u16::from_bytes);
     // 0x32 or 0x3E
-    let sec_names_idx = reader.read(2, u16::from_bytes);
+    let sec_names_idx = reader.read(2, u16::from_bytes) as usize;
 
     let sections = read_sections(
-        &bytes[sec_header_off.usize()..],
+        &bytes,
+        sec_header_off.usize(),
         sec_entries,
         sec_header_size,
         sec_names_idx,
@@ -161,19 +160,10 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
         e_phnum: prog_entries,
         e_shentsize: sec_header_size,
         e_shnum: sec_entries,
-        e_shstrndx: sec_names_idx as usize,
+        e_shstrndx: sec_names_idx,
     };
 
-    let shstrtab = &sections[header.e_shstrndx];
-    let shstr_data = Vec::from(
-        &bytes[shstrtab.sh_offset.usize()..shstrtab.sh_offset.usize() + shstrtab.sh_size.usize()],
-    );
-
-    Elf {
-        header,
-        sections,
-        shstr_data,
-    }
+    Elf { header, sections }
 }
 
 fn main() {
@@ -185,7 +175,7 @@ fn main() {
         let elf = read_elf(elf_bytes);
         // println!("{elf:?}");
         for header in elf.sections {
-            header.dump(&elf.shstr_data);
+            header.dump();
         }
 
         println!("");

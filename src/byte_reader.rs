@@ -38,7 +38,7 @@ impl<'data> ByteReader<'data> {
         VariableBits::from(data)
     }
 
-    /// read N amount of bytes and apply a conversion function 
+    /// read N amount of bytes and apply a conversion function
     /// to transform a byte array to a more useable type
     pub fn read<T, F>(&mut self, bytes: usize, convert: F) -> T
     where
@@ -51,7 +51,6 @@ impl<'data> ByteReader<'data> {
 
     /// read N amount of bytes, and return the byte slice
     pub fn read_raw(&mut self, bytes: usize) -> &'data [u8] {
-
         let data = &self.data[self.offset..self.offset + bytes];
         self.offset += bytes;
         data
