@@ -2,7 +2,7 @@ use crate::byte_reader::ByteReader;
 use crate::types::Bits;
 use crate::types::VariableBits;
 
-fn convert_to_integer<T>(bytes: &[u8]) -> T
+fn convert_bytes<T>(bytes: &[u8]) -> T
 where
     T: From<u16> + From<u32> + TryInto<u16> + TryInto<u32>,
 {
@@ -27,8 +27,8 @@ struct SectionHeader {
 
 fn make_section(bytes: &[u8], bits: &Bits) -> SectionHeader {
     let mut reader = ByteReader::new(bytes, bits);
-    let sh_name = reader.read(4, convert_to_integer::<u32>);
-    let sh_type = reader.read(4, convert_to_integer::<u32>);
+    let sh_name = convert_bytes::<u32>(reader.read(4));
+    let sh_type = convert_bytes::<u32>(reader.read(4));
     let sh_flags = reader.word();
 
     SectionHeader {

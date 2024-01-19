@@ -35,12 +35,18 @@ impl<'data> ByteReader<'data> {
         VariableBits::from(data)
     }
 
-    pub fn read<T, F>(&'data mut self, bytes: usize, convert: F) -> T
-    where
-        F: Fn(&'data [u8]) -> T,
-    {
+    // pub fn read<T, F>(&'data mut self, bytes: usize, convert: F) -> T
+    // where
+    //     F: Fn(&'data [u8]) -> T,
+    // {
+    //     let data = &self.data[self.offset..self.offset + bytes];
+    //     self.offset += bytes;
+    //     convert(data)
+    //}
+
+    pub fn read(&'data mut self, bytes: usize) -> &'data [u8] {
         let data = &self.data[self.offset..self.offset + bytes];
         self.offset += bytes;
-        convert(data)
+        data
     }
 }
