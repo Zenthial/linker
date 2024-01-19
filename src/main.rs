@@ -2,9 +2,8 @@
 #![allow(dead_code)]
 mod bytes;
 
-use std::fs;
 use crate::bytes::*;
-
+use std::fs;
 
 #[derive(Debug)]
 enum Bits {
@@ -39,9 +38,9 @@ struct Elf {
     ty: ElfType,
     inst_set: InstructionSet,
     entry_addr: Vec<u8>,
-    prog_header_off: u64, // program header offset
-    sec_header_off: u64,  // section header offset
-    flags: u32,           // platform specific, may not even need?
+    prog_header_off: usize, // program header offset
+    sec_header_off: usize,  // section header offset
+    flags: u32,             // platform specific, may not even need?
     file_header_size: u16,
     prog_header_size: u16,
     prog_entries: u16,
@@ -94,12 +93,12 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     let prog_header_off = match bits {
         Bits::B64 => as_u64_le(&bytes[0x20..0x28]),
         Bits::B32 => as_u64_le(&bytes[0x1C..0x20]),
-    };
+    } as usize;
 
     let sec_header_off = match bits {
         Bits::B64 => as_u64_le(&bytes[0x28..0x30]),
         Bits::B32 => as_u64_le(&bytes[0x20..0x24]),
-    };
+    } as usize;
 
     let mut offset = match bits {
         Bits::B64 => 0x30,
@@ -121,6 +120,8 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     offset += 2;
     let sec_names_idx = as_u16_le(&bytes[offset..offset + 2]);
 
+    println!("{:?}", &bytes[sec_header_off..]);
+
     Elf {
         bits,
         endian,
@@ -140,9 +141,9 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
 }
 
 fn main() {
-    let elf_bytes: Vec<u8> = fs::read("samples/zero.o").unwrap();
-
-    println!("{:?}", read_elf(elf_bytes));
+    // let elf_bytes: Vec<u8> = fs::read("samples/zero.o").unwrap();
+    //
+    // println!("{:?}", read_elf(elf_bytes));
 
     let elf_bytes: Vec<u8> = fs::read("samples/hello_world.o").unwrap();
 
