@@ -90,45 +90,41 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
         _ => panic!("bits unrecoginzed"),
     };
 
-    let inst_set = match bytes[0x12] {
+    // 0x12, 0x13
+    let inst_set = match reader.read(2, u16::from_bytes) {
         0x3E => InstructionSet::AmdX86_64,
         _ => panic!("unknown inst set {}", bytes[0x12]),
     };
 
-    let entry_addr = match bits {
-        Bits::B64 => VariableBits::from(&bytes[0x18..0x20]),
-        Bits::B32 => VariableBits::from(&bytes[0x18..0x1C]),
-    };
+    // 0x14 -> 0x17
+    let _version = reader.read(4, u32::from_bytes);
 
-    let prog_header_off = match bits {
-        Bits::B64 => VariableBits::from(&bytes[0x20..0x28]),
-        Bits::B32 => VariableBits::from(&bytes[0x1C..0x20]),
-    };
+    // 0x18..0x20 for 64
+    // 0x18..0x1C for 32
+    let entry_addr = reader.word();
 
-    let sec_header_off = match bits {
-        Bits::B64 => VariableBits::from(&bytes[0x28..0x30]),
-        Bits::B32 => VariableBits::from(&bytes[0x20..0x24]),
-    };
+    // 0x20..0x28 for 64
+    // 0x1C..0x20 for 32
+    let prog_header_off = reader.word();
 
-    let mut offset = match bits {
-        Bits::B64 => 0x30,
-        Bits::B32 => 0x24,
-    };
+    // 0x28..0x30 for 64
+    // 0x20..0x24 for 32
+    let sec_header_off = reader.word();
 
-    let flags = u32::from_le_bytes(bytes[offset..offset + 4].try_into().unwrap());
-    offset += 4;
-
-    let file_header_size = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-    offset += 2;
-    let prog_header_size = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-    offset += 2;
-    let prog_entries = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-    offset += 2;
-    let sec_header_size = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-    offset += 2;
-    let sec_entries = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
-    offset += 2;
-    let sec_names_idx = u16::from_le_bytes(bytes[offset..offset + 2].try_into().unwrap());
+    // 0x24 or 0x30
+    let flags = reader.read(4, u32::from_bytes);
+    // 0x28 or 0x34
+    let file_header_size = reader.read(2, u16::from_bytes);
+    // 0x2A or 0x36
+    let prog_header_size = reader.read(2, u16::from_bytes);
+    // 0x2C or 0x38
+    let prog_entries = reader.read(2, u16::from_bytes);
+    // 0x2E or 0x3A
+    let sec_header_size = reader.read(2, u16::from_bytes);
+    // 0x30 or 0x3C
+    let sec_entries = reader.read(2, u16::from_bytes);
+    // 0x32 or 0x3E
+    let sec_names_idx = reader.read(2, u16::from_bytes);
 
     read_sections(
         &bytes[sec_header_off.usize()..],
