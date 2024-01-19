@@ -49,6 +49,10 @@ impl SectionHeader {
         let s = cs.to_str().expect("did not contain valid utf8");
         String::from(s)
     }
+
+    pub fn dump(&self, str_tab: &[u8]) {
+        println!("{} {:?} {} {}", self.name(str_tab), self.sh_type, self.sh_offset, self.sh_size);
+    }
 }
 
 fn make_section(bytes: &[u8], bits: &Bits) -> SectionHeader {

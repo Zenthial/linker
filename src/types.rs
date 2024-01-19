@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::mem::MaybeUninit;
 use std::ptr;
 
@@ -13,6 +14,16 @@ impl VariableBits {
         match *self {
             U64(u) => u as usize,
             U32(u) => u as usize,
+        }
+    }
+}
+
+impl Display for VariableBits {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        use VariableBits::*;
+        match *self {
+            U64(u) => write!(f, "{}", u),
+            U32(u) => write!(f, "{}", u),
         }
     }
 }

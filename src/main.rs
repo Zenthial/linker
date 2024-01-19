@@ -58,7 +58,7 @@ struct FileHeader {
 struct Elf {
     header: FileHeader,
     sections: Vec<SectionHeader>,
-    shstr_data: Vec<u8>
+    shstr_data: Vec<u8>,
 }
 
 fn read_elf(bytes: Vec<u8>) -> Elf {
@@ -165,17 +165,29 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     };
 
     let shstrtab = &sections[header.e_shstrndx];
-    let shstr_data = Vec::from(&bytes[shstrtab.sh_offset.usize() .. shstrtab.sh_offset.usize() + shstrtab.sh_size.usize()]);
+    let shstr_data = Vec::from(
+        &bytes[shstrtab.sh_offset.usize()..shstrtab.sh_offset.usize() + shstrtab.sh_size.usize()],
+    );
 
-    Elf { header, sections, shstr_data }
+    Elf {
+        header,
+        sections,
+        shstr_data,
+    }
 }
 
 fn main() {
-    let elf_bytes: Vec<u8> = fs::read("samples/hello_world.o").unwrap();
+    let files = ["samples/hello_world.o", "samples/zero.o"];
+    for file in files {
+        println!("{file}:");
+        let elf_bytes: Vec<u8> = fs::read(file).unwrap();
 
-    let elf = read_elf(elf_bytes);
-    println!("{elf:?}");
-    for header in elf.sections {
-        println!("{}", header.name(&elf.shstr_data))
+        let elf = read_elf(elf_bytes);
+        // println!("{elf:?}");
+        for header in elf.sections {
+            header.dump(&elf.shstr_data);
+        }
+
+        println!("");
     }
 }
