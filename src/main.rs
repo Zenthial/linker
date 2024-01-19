@@ -143,4 +143,8 @@ fn main() {
     let elf_bytes: Vec<u8> = fs::read("samples/zero.o").unwrap();
 
     println!("{:?}", read_elf(elf_bytes));
+
+    let elf_bytes: Vec<u8> = fs::read("samples/hello_world.o").unwrap();
+
+    println!("{:?}", read_elf(elf_bytes));
 }
