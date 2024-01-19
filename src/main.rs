@@ -4,6 +4,8 @@ mod byte_reader;
 mod section;
 mod types;
 
+use section::SectionHeader;
+
 use crate::byte_reader::ByteReader;
 use crate::section::read_sections;
 use crate::types::{Bits, FromBytes, VariableBits};
@@ -30,21 +32,33 @@ enum InstructionSet {
 }
 
 #[derive(Debug)]
-struct Elf {
+struct FileIdent {
     bits: Bits,
     endian: Endian,
-    ty: ElfType,
-    inst_set: InstructionSet,
-    entry_addr: VariableBits,
-    prog_header_off: VariableBits, // program header offset
-    sec_header_off: VariableBits,  // section header offset
-    flags: u32,                    // platform specific, may not even need?
-    file_header_size: u16,
-    prog_header_size: u16,
-    prog_entries: u16,
-    sec_header_size: u16,
-    sec_entries: u16,
-    sec_names_idx: u16,
+}
+
+#[derive(Debug)]
+struct FileHeader {
+    e_ident: FileIdent,
+    e_type: ElfType,
+    e_machine: InstructionSet,
+    e_entry: VariableBits,
+    e_phoff: VariableBits, // program header offset
+    e_shoff: VariableBits, // section header offset
+    e_flags: u32,          // platform specific, may not even need?
+    e_ehsize: u16,
+    e_phentsize: u16,
+    e_phnum: u16,
+    e_shentsize: u16,
+    e_shnum: u16,
+    e_shstrndx: usize,
+}
+
+#[derive(Debug)]
+struct Elf {
+    header: FileHeader,
+    sections: Vec<SectionHeader>,
+    shstr_data: Vec<u8>
 }
 
 fn read_elf(bytes: Vec<u8>) -> Elf {
@@ -126,7 +140,7 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
     // 0x32 or 0x3E
     let sec_names_idx = reader.read(2, u16::from_bytes);
 
-    read_sections(
+    let sections = read_sections(
         &bytes[sec_header_off.usize()..],
         sec_entries,
         sec_header_size,
@@ -134,30 +148,34 @@ fn read_elf(bytes: Vec<u8>) -> Elf {
         &bits,
     );
 
-    Elf {
-        bits,
-        endian,
-        ty,
-        inst_set,
-        entry_addr,
-        prog_header_off,
-        sec_header_off,
-        flags,
-        file_header_size,
-        prog_header_size,
-        prog_entries,
-        sec_entries,
-        sec_names_idx,
-        sec_header_size,
-    }
+    let header = FileHeader {
+        e_ident: FileIdent { bits, endian },
+        e_type: ty,
+        e_machine: inst_set,
+        e_entry: entry_addr,
+        e_phoff: prog_header_off,
+        e_shoff: sec_header_off,
+        e_flags: flags,
+        e_ehsize: file_header_size,
+        e_phentsize: prog_header_size,
+        e_phnum: prog_entries,
+        e_shentsize: sec_header_size,
+        e_shnum: sec_entries,
+        e_shstrndx: sec_names_idx as usize,
+    };
+
+    let shstrtab = &sections[header.e_shstrndx];
+    let shstr_data = Vec::from(&bytes[shstrtab.sh_offset.usize() .. shstrtab.sh_offset.usize() + shstrtab.sh_size.usize()]);
+
+    Elf { header, sections, shstr_data }
 }
 
 fn main() {
-    // let elf_bytes: Vec<u8> = fs::read("samples/zero.o").unwrap();
-    //
-    // println!("{:?}", read_elf(elf_bytes));
-
     let elf_bytes: Vec<u8> = fs::read("samples/hello_world.o").unwrap();
 
-    println!("{:?}", read_elf(elf_bytes));
+    let elf = read_elf(elf_bytes);
+    println!("{elf:?}");
+    for header in elf.sections {
+        println!("{}", header.name(&elf.shstr_data))
+    }
 }

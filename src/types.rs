@@ -44,7 +44,7 @@ impl FromBytes for u16 {
     type T = u16;
     fn from_bytes(bytes: &[u8]) -> Self::T {
         if bytes.len() != 2 {
-            panic!("Unsupported byte array length");
+            panic!("unsupported byte array length");
         }
         let mut arr: [u8; 2] = unsafe { MaybeUninit::zeroed().assume_init() };
         unsafe {
@@ -58,7 +58,7 @@ impl FromBytes for u32 {
     type T = u32;
     fn from_bytes(bytes: &[u8]) -> Self::T {
         if bytes.len() != 4 {
-            panic!("Unsupported byte array length");
+            panic!("unsupported byte array length");
         }
         let mut arr: [u8; 4] = unsafe { MaybeUninit::zeroed().assume_init() };
         unsafe {
