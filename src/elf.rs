@@ -1,6 +1,9 @@
 use crate::byte_reader::ByteReader;
 use crate::section::{read_sections, Section};
-use crate::types::{Bits, FromBytes, VariableBits};
+use crate::types::{Bits, FromBytes, VariableBits, get_name};
+
+use num_derive::FromPrimitive;
+use num_traits::FromPrimitive;
 
 #[derive(Debug)]
 enum Endian {
@@ -23,14 +26,14 @@ enum InstructionSet {
 }
 
 #[derive(Debug)]
-struct FileIdent {
-    bits: Bits,
+pub struct FileIdent {
+    pub bits: Bits,
     endian: Endian,
 }
 
 #[derive(Debug)]
 pub struct FileHeader {
-    e_ident: FileIdent,
+    pub e_ident: FileIdent,
     e_type: ElfType,
     e_machine: InstructionSet,
     e_entry: VariableBits,
@@ -105,15 +108,15 @@ pub fn read_elf(bytes: Vec<u8>) -> Elf {
 
     // 0x18..0x20 for 64
     // 0x18..0x1C for 32
-    let entry_addr = reader.word();
+    let entry_addr = reader.addr();
 
     // 0x20..0x28 for 64
     // 0x1C..0x20 for 32
-    let prog_header_off = reader.word();
+    let prog_header_off = reader.addr();
 
     // 0x28..0x30 for 64
     // 0x20..0x24 for 32
-    let sec_header_off = reader.word();
+    let sec_header_off = reader.addr();
 
     // 0x24 or 0x30
     let flags = reader.read(4, u32::from_bytes);
@@ -156,4 +159,94 @@ pub fn read_elf(bytes: Vec<u8>) -> Elf {
     };
 
     Elf { header, sections }
+}
+
+#[derive(Debug, FromPrimitive)]
+enum SymbolBinding {
+    Local,
+    Global,
+    Weak,
+    Loos = 10,
+    Hios = 12,
+    Loproc,
+    Hiproc = 15,
+}
+
+#[derive(Debug, FromPrimitive)]
+enum SymbolType {
+    NoType,
+    Object,
+    Func,
+    Section,
+    File,
+    Loos = 10,
+    Hios = 12,
+    Loproc,
+    Hiproc = 15,
+}
+
+#[derive(Debug)]
+struct SymbolInfo {
+    binding: SymbolBinding,
+    ty: SymbolType,
+}
+
+#[derive(Debug)]
+struct SymbolTableEntry {
+    st_name: String, // u32 offset, but we just ignore that and fill it in
+    st_info: SymbolInfo, // expand the one byte into a useable struct
+    // there is another byte of padding here that isn't used by the entry, so we don't include it
+    st_shndx: u16,
+    st_value: VariableBits,
+    st_size: VariableBits,
+}
+
+fn read_entry(entry_bytes: &[u8], bits: &Bits, str_tab: &[u8]) -> SymbolTableEntry {
+    let mut reader = ByteReader::new(entry_bytes, bits);
+    let st_name = reader.read(4, u32::from_bytes); // 0x4
+    let info: u8 = reader.byte(); // 0x4
+
+    let binding_info = info >> 4;
+    let type_info = info & 0b00001111;
+    let binding = SymbolBinding::from_u8(binding_info)
+        .expect(&format!("no binding info for {:04b}", binding_info));
+    let ty = SymbolType::from_u8(type_info).expect(&format!("no type info for {:04b}", type_info));
+
+    let _other = reader.byte(); // padding
+    let st_shndx = reader.read(2, u16::from_bytes);
+    let st_value = reader.addr();
+    let st_size = reader.addr(); // this is technically an 'xword', but is also 4 or 8 bytes depending on arch, so we just use addr
+
+    SymbolTableEntry {
+        st_name: get_name(st_name as usize, str_tab),
+        st_info: SymbolInfo { binding, ty },
+        st_shndx,
+        st_value,
+        st_size,
+    }
+}
+
+pub fn read_symtab(elf: &Elf) {
+    let symtab = elf.sections.iter().find(|s| s.name == ".symtab");
+    let symtab = match symtab {
+        Some(st) => st,
+        None => panic!("no .symtab"),
+    };
+    let bits = &elf.header.e_ident.bits;
+    let str_tab = elf.sections.iter().find(|s| s.name == ".strtab");
+    let str_tab = match str_tab {
+        Some(st) => &st.data,
+        None => panic!("no .strtab"),
+    };
+
+    let symbols = symtab.header.sh_size.usize() / symtab.header.sh_entsize.usize();
+    let mut offset = symtab.header.sh_entsize.usize(); // we index one entry in, because the first
+    // entry is always all 0s
+    for _ in 1..symbols {
+        let bytes = &symtab.data[offset..offset + symtab.header.sh_entsize.usize()];
+        print!("{:?} ", read_entry(bytes, bits, str_tab));
+        offset += symtab.header.sh_entsize.usize();
+    }
+
+    println!("");
 }

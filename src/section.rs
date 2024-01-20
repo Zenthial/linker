@@ -2,9 +2,9 @@ use crate::byte_reader::ByteReader;
 use crate::types::Bits;
 use crate::types::FromBytes;
 use crate::types::VariableBits;
+use crate::types::get_name;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use std::ffi;
 
 #[derive(Debug, FromPrimitive)]
 pub enum SectionType {
@@ -26,6 +26,8 @@ pub enum SectionType {
     Group,
     SymtabShndx,
     Num,
+
+    X86_64Unwind = 1879048193, // some thing that llvm uses
 }
 
 #[derive(Debug)]
@@ -42,15 +44,6 @@ pub struct SectionHeader {
     pub sh_entsize: VariableBits,
 }
 
-impl SectionHeader {
-    pub fn name(&self, str_tab: &[u8]) -> String {
-        let offset = self.sh_name as usize;
-        let cs = ffi::CStr::from_bytes_until_nul(&str_tab[offset..]).expect("did not contain nul");
-        let s = cs.to_str().expect("did not contain valid utf8");
-        String::from(s)
-    }
-}
-
 #[derive(Debug)]
 pub struct Section {
     pub header: SectionHeader,
@@ -61,8 +54,13 @@ pub struct Section {
 impl Section {
     pub fn dump(&self) {
         println!(
-            "{} {:?} {} {} {:?}",
-            self.name, self.header.sh_type, self.header.sh_offset, self.header.sh_size, self.data
+            "{} {:?} {} {} {} {:?}",
+            self.name,
+            self.header.sh_type,
+            self.header.sh_offset,
+            self.header.sh_size,
+            self.header.sh_entsize,
+            self.data,
         )
     }
 }
@@ -70,16 +68,17 @@ impl Section {
 fn make_section_header(bytes: &[u8], bits: &Bits) -> SectionHeader {
     let mut reader = ByteReader::new(bytes, bits);
     let sh_name = reader.read(4, u32::from_bytes);
-    let sh_type =
-        SectionType::from_u32(reader.read(4, u32::from_bytes)).expect("unknown section type");
-    let sh_flags = reader.word();
-    let sh_addr = reader.word();
-    let sh_offset = reader.word();
-    let sh_size = reader.word();
+    let sh_type_value = reader.read(4, u32::from_bytes);
+    let sh_type = SectionType::from_u32(sh_type_value)
+        .expect(&format!("unknown section type: {}", sh_type_value));
+    let sh_flags = reader.addr();
+    let sh_addr = reader.addr();
+    let sh_offset = reader.addr();
+    let sh_size = reader.addr();
     let sh_link = reader.read(4, u32::from_bytes);
     let sh_info = reader.read(4, u32::from_bytes);
-    let sh_addralign = reader.word();
-    let sh_entsize = reader.word();
+    let sh_addralign = reader.addr();
+    let sh_entsize = reader.addr();
 
     SectionHeader {
         sh_name,
@@ -115,12 +114,13 @@ pub fn read_section_headers(
         .collect()
 }
 
-fn make_section(header: SectionHeader, bytes: &[u8], shstrtab: &[u8]) -> Section {
+fn make_section(header: SectionHeader, bytes: &[u8], str_tab: &[u8]) -> Section {
     let data = Vec::from(
         &bytes[header.sh_offset.usize()..header.sh_offset.usize() + header.sh_size.usize()],
     );
 
-    let name = header.name(shstrtab);
+    let offset = header.sh_name as usize;
+    let name = get_name(offset, str_tab);
 
     Section { header, data, name }
 }

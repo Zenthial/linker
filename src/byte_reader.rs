@@ -16,10 +16,10 @@ impl<'data> ByteReader<'data> {
         }
     }
 
-    /// word might not be the best descriptor
+    /// elf32 addr is 4 bytes, elf64 is 8 bytes
     /// reads 4 or 8 bytes depending on if the byte reader is in
     /// 32 or 64 bit mode
-    pub fn word(&mut self) -> VariableBits {
+    pub fn addr(&mut self) -> VariableBits {
         let start = self.offset;
         match self.bits {
             B32 => {

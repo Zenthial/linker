@@ -1,3 +1,4 @@
+use std::ffi;
 use std::fmt::Display;
 use std::mem::MaybeUninit;
 use std::ptr;
@@ -77,4 +78,10 @@ impl FromBytes for u32 {
         }
         u32::from_le_bytes(arr)
     }
+}
+
+pub fn get_name(offset: usize, str_tab: &[u8]) -> String {
+    let cs = ffi::CStr::from_bytes_until_nul(&str_tab[offset..]).expect("did not contain nul");
+    let s = cs.to_str().expect("did not contain valid utf8");
+    String::from(s)
 }
