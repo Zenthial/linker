@@ -1,1 +1,2 @@
-toy linker written in rust
+toy ELF64 linker written in rust
+

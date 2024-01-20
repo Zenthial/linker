@@ -3,6 +3,9 @@ use crate::types::get_name;
 use crate::types::Bits;
 use crate::types::FromBytes;
 use crate::types::VariableBits;
+
+use std::fmt::Display;
+
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
@@ -27,7 +30,7 @@ pub enum SectionType {
     SymtabShndx,
     Num,
 
-    LOOS = 1879002115, // another llvm thing
+    LOOS = 1879002115,         // another llvm thing
     X86_64Unwind = 1879048193, // some thing that llvm uses
 }
 
@@ -58,10 +61,11 @@ pub struct Section {
     pub data: Vec<u8>,
 }
 
-impl Section {
-    pub fn dump(&self) {
-        println!(
-            "{}, type: {:?}, offset: {}, size: {}, entry_size: {}",
+impl Display for Section {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "section: {}, type: {:?}, offset: {}, size: {}, entry_size: {}",
             self.name,
             self.header.sh_type,
             self.header.sh_offset,
@@ -139,8 +143,7 @@ pub fn read_sections(
     nameidx: usize,
     bits: &Bits,
 ) -> Vec<Section> {
-    let mut headers = read_section_headers(&bytes[header_offset..], entries, size, bits);
-    headers.remove(0); // first section is all zeros
+    let headers = read_section_headers(&bytes[header_offset..], entries, size, bits);
 
     let shstrtab_header = &headers[nameidx];
     let shstrtab = &bytes[shstrtab_header.sh_offset.usize()

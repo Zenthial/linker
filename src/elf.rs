@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use crate::byte_reader::ByteReader;
 use crate::section::{read_sections, Section, SectionType};
 use crate::types::{get_name, Bits, FromBytes, VariableBits};
@@ -45,13 +47,24 @@ pub struct FileHeader {
     e_phnum: u16,
     e_shentsize: u16,
     e_shnum: u16,
-    e_shstrndx: usize,
+    pub e_shstrndx: usize,
 }
 
 #[derive(Debug)]
 pub struct Elf {
     pub header: FileHeader,
     pub sections: Vec<Section>,
+}
+
+impl Display for Elf {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut vec_string = String::new();
+        for s in &self.sections {
+            vec_string += &format!("[{s}] ");
+        }
+
+        write!(f, "{:?} {}", self.header, vec_string)
+    }
 }
 
 #[derive(Debug, FromPrimitive)]
@@ -117,7 +130,7 @@ fn read_entry(
 
     let mut name = get_name(st_name as usize, str_tab);
     if ty == SymbolType::Section {
-        name = sections[(st_shndx - 1) as usize].name.clone();
+        name = sections[(st_shndx ) as usize].name.clone();
     }
 
     SymbolTableEntry {
@@ -144,11 +157,10 @@ pub fn read_symtab(elf: &Elf) -> Vec<SymbolTableEntry> {
 
     let mut entries = vec![];
     let symbols = symtab.header.entries();
-    let mut offset = symtab.header.sh_entsize.usize(); // we index one entry in, because the first
+    let mut offset = 0; // we index one entry in, because the first
                                                        // entry is always all 0s
-    for _ in 1..symbols {
+    for _ in 0..symbols {
         let bytes = &symtab.data[offset..offset + symtab.header.sh_entsize.usize()];
-        // print!("{:?} ", read_entry(bytes, bits, str_tab));
         entries.push(read_entry(bytes, bits, str_tab, &elf.sections));
         offset += symtab.header.sh_entsize.usize();
     }
@@ -160,8 +172,10 @@ pub fn read_symtab(elf: &Elf) -> Vec<SymbolTableEntry> {
 #[derive(Debug, FromPrimitive)]
 #[allow(non_camel_case_types)]
 enum RelaType {
+    R_X86_64_64 = 1,
     R_X86_64_PC32 = 2,
     R_X86_64_PLT32 = 4,
+    R_X86_64_GOTPCREL = 9,
     R_X86_64_32 = 10,
 }
 
@@ -173,30 +187,35 @@ pub struct Rela {
     r_addend: i64,
 }
 
+impl Display for Rela {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:012x} {:?} {} {}", self.r_offset, self.r_ty, self.r_name, self.r_addend)
+    }
+}
+
 // this only supports 64 bit for now
-fn read_rela(mut reader: ByteReader, symbs: &Vec<SymbolTableEntry>) -> Option<Rela> {
+fn read_rela(mut reader: ByteReader, symbs: &Vec<SymbolTableEntry>) -> Rela {
     let r_offset = reader.read(8, u64::from_bytes);
     let r_info = reader.read(8, u64::from_bytes);
     let r_addend = reader.read(8, i64::from_bytes);
 
-    let r_sym = u32::from_u64(r_info >> 32).expect("bitshift error?") - 1;
+    let r_sym = u32::from_u64(r_info >> 32).expect("bitshift error?") ;
     let r_ty = u32::from_u64(r_info & 0xffffffff).expect("bit mask error?");
     let r_ty = match RelaType::from_u32(r_ty) {
         Some(ty) => ty,
         None => {
-            println!("{r_ty}");
-            return None;
+            panic!("{r_ty}");
         }
     };
 
     let r_name = symbs[r_sym as usize].st_name.clone();
 
-    Some(Rela {
+    Rela {
         r_name,
         r_offset,
         r_ty,
         r_addend,
-    })
+    }
 }
 
 pub fn read_relas(elf: &Elf) -> Vec<(String, Vec<Rela>)> {
@@ -222,13 +241,8 @@ pub fn read_relas(elf: &Elf) -> Vec<(String, Vec<Rela>)> {
                 bits,
             );
             let r = read_rela(reader, &symbs);
-            match r {
-                Some(r) => {
-                    println!("  {r:?}");
-                    relocs.push(r);
-                }
-                None => {}
-            }
+            println!("  {r}");
+            relocs.push(r);
             offset += rela.header.sh_entsize.usize();
         }
 
@@ -315,7 +329,7 @@ pub fn read_elf(bytes: Vec<u8>) -> Elf {
     // 0x30 or 0x3C
     let sec_entries = reader.read(2, u16::from_bytes);
     // 0x32 or 0x3E
-    let sec_names_idx = reader.read(2, u16::from_bytes) as usize - 1; // we subtract 1 because we ignore the first section header, as its all zeros
+    let sec_names_idx = reader.read(2, u16::from_bytes) as usize ; 
 
     let sections = read_sections(
         &bytes,
