@@ -11,18 +11,25 @@ mod types;
 use std::fs;
 
 fn main() {
-    let files = ["samples/hello_world.o", "samples/zero.o", "samples/clo.o"];
+    let files = [
+        "samples/hello_world.o",
+        "samples/zero.o",
+        "samples/clo.o",
+        "samples/more.o",
+    ];
+
     for file in files {
         println!("{file}:");
         let elf_bytes: Vec<u8> = fs::read(file).unwrap();
 
         let elf = elf::read_elf(elf_bytes);
         // println!("{elf:?}");
-        // for header in &elf.sections {
-        //     header.dump();
+        // for section in &elf.sections {
+        //     section.dump();
         // }
 
-        elf::read_symtab(&elf);
+        // elf::read_symtab(&elf);
+        elf::read_rela(&elf);
         println!("");
     }
 }

@@ -1,12 +1,12 @@
 use crate::byte_reader::ByteReader;
+use crate::types::get_name;
 use crate::types::Bits;
 use crate::types::FromBytes;
 use crate::types::VariableBits;
-use crate::types::get_name;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, FromPrimitive, PartialEq, Eq)]
 pub enum SectionType {
     Null,
     ProgBits,
@@ -27,6 +27,7 @@ pub enum SectionType {
     SymtabShndx,
     Num,
 
+    LOOS = 1879002115, // another llvm thing
     X86_64Unwind = 1879048193, // some thing that llvm uses
 }
 
@@ -46,21 +47,20 @@ pub struct SectionHeader {
 
 #[derive(Debug)]
 pub struct Section {
-    pub header: SectionHeader,
     pub name: String,
+    pub header: SectionHeader,
     pub data: Vec<u8>,
 }
 
 impl Section {
     pub fn dump(&self) {
         println!(
-            "{} {:?} {} {} {} {:?}",
+            "{}, type: {:?}, offset: {}, size: {}, entry_size: {}",
             self.name,
             self.header.sh_type,
             self.header.sh_offset,
             self.header.sh_size,
             self.header.sh_entsize,
-            self.data,
         )
     }
 }
@@ -133,7 +133,8 @@ pub fn read_sections(
     nameidx: usize,
     bits: &Bits,
 ) -> Vec<Section> {
-    let headers = read_section_headers(&bytes[header_offset..], entries, size, bits);
+    let mut headers = read_section_headers(&bytes[header_offset..], entries, size, bits);
+    headers.remove(0); // first section is all zeros
 
     let shstrtab_header = &headers[nameidx];
     let shstrtab = &bytes[shstrtab_header.sh_offset.usize()
