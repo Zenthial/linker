@@ -45,6 +45,12 @@ pub struct SectionHeader {
     pub sh_entsize: VariableBits,
 }
 
+impl SectionHeader {
+    pub fn entries(&self) -> usize {
+        self.sh_size.usize() / self.sh_entsize.usize()
+    }
+}
+
 #[derive(Debug)]
 pub struct Section {
     pub name: String,

@@ -29,7 +29,7 @@ fn main() {
         // }
 
         // elf::read_symtab(&elf);
-        elf::read_rela(&elf);
+        elf::read_relas(&elf);
         println!("");
     }
 }

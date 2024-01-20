@@ -65,7 +65,7 @@ enum SymbolBinding {
     Hiproc = 15,
 }
 
-#[derive(Debug, FromPrimitive)]
+#[derive(Debug, FromPrimitive, PartialEq, Eq)]
 enum SymbolType {
     NoType,
     Object,
@@ -94,7 +94,12 @@ pub struct SymbolTableEntry {
     st_size: VariableBits,
 }
 
-fn read_entry(entry_bytes: &[u8], bits: &Bits, str_tab: &[u8]) -> SymbolTableEntry {
+fn read_entry(
+    entry_bytes: &[u8],
+    bits: &Bits,
+    str_tab: &[u8],
+    sections: &Vec<Section>,
+) -> SymbolTableEntry {
     let mut reader = ByteReader::new(entry_bytes, bits);
     let st_name = reader.read(4, u32::from_bytes); // 0x4
     let info: u8 = reader.byte(); // 0x4
@@ -110,8 +115,13 @@ fn read_entry(entry_bytes: &[u8], bits: &Bits, str_tab: &[u8]) -> SymbolTableEnt
     let st_value = reader.addr();
     let st_size = reader.addr(); // this is technically an 'xword', but is also 4 or 8 bytes depending on arch, so we just use addr
 
+    let mut name = get_name(st_name as usize, str_tab);
+    if ty == SymbolType::Section {
+        name = sections[(st_shndx - 1) as usize].name.clone();
+    }
+
     SymbolTableEntry {
-        st_name: get_name(st_name as usize, str_tab),
+        st_name: name,
         st_info: SymbolInfo { binding, ty },
         st_shndx,
         st_value,
@@ -133,28 +143,99 @@ pub fn read_symtab(elf: &Elf) -> Vec<SymbolTableEntry> {
     };
 
     let mut entries = vec![];
-    let symbols = symtab.header.sh_size.usize() / symtab.header.sh_entsize.usize();
+    let symbols = symtab.header.entries();
     let mut offset = symtab.header.sh_entsize.usize(); // we index one entry in, because the first
                                                        // entry is always all 0s
     for _ in 1..symbols {
         let bytes = &symtab.data[offset..offset + symtab.header.sh_entsize.usize()];
         // print!("{:?} ", read_entry(bytes, bits, str_tab));
-        entries.push(read_entry(bytes, bits, str_tab));
+        entries.push(read_entry(bytes, bits, str_tab, &elf.sections));
         offset += symtab.header.sh_entsize.usize();
     }
 
     entries
 }
 
-struct Rela {
-    r_offset: VariableBits,
-    r_info: VariableBits,
-    r_addend: VariableBits,
+//Advanced Micro Devices X86-64 relocation types
+#[derive(Debug, FromPrimitive)]
+#[allow(non_camel_case_types)]
+enum RelaType {
+    R_X86_64_PC32 = 2,
+    R_X86_64_PLT32 = 4,
+    R_X86_64_32 = 10,
 }
 
-pub fn read_rela(elf: &Elf) {
-    let relas: Vec<&Section> = elf.sections.iter().filter(|s| s.header.sh_type == SectionType::Rela).collect();
-    println!("{}", relas.len());
+#[derive(Debug)]
+pub struct Rela {
+    r_name: String, // field we resolve
+    r_offset: u64,
+    r_ty: RelaType, // info gets removed and replaced with ty
+    r_addend: i64,
+}
+
+// this only supports 64 bit for now
+fn read_rela(mut reader: ByteReader, symbs: &Vec<SymbolTableEntry>) -> Option<Rela> {
+    let r_offset = reader.read(8, u64::from_bytes);
+    let r_info = reader.read(8, u64::from_bytes);
+    let r_addend = reader.read(8, i64::from_bytes);
+
+    let r_sym = u32::from_u64(r_info >> 32).expect("bitshift error?") - 1;
+    let r_ty = u32::from_u64(r_info & 0xffffffff).expect("bit mask error?");
+    let r_ty = match RelaType::from_u32(r_ty) {
+        Some(ty) => ty,
+        None => {
+            println!("{r_ty}");
+            return None;
+        }
+    };
+
+    let r_name = symbs[r_sym as usize].st_name.clone();
+
+    Some(Rela {
+        r_name,
+        r_offset,
+        r_ty,
+        r_addend,
+    })
+}
+
+pub fn read_relas(elf: &Elf) -> Vec<(String, Vec<Rela>)> {
+    let bits = &elf.header.e_ident.bits;
+
+    let relas: Vec<&Section> = elf
+        .sections
+        .iter()
+        .filter(|s| s.header.sh_type == SectionType::Rela)
+        .collect();
+
+    let symbs = read_symtab(elf);
+
+    let mut rs = vec![];
+    for rela in relas {
+        let mut relocs = vec![];
+        let entries = rela.header.entries();
+        println!("{}", rela.name);
+        let mut offset = 0; // we index one entry in, because the first
+        for _ in 0..entries {
+            let reader = ByteReader::new(
+                &rela.data[offset..offset + rela.header.sh_entsize.usize()],
+                bits,
+            );
+            let r = read_rela(reader, &symbs);
+            match r {
+                Some(r) => {
+                    println!("  {r:?}");
+                    relocs.push(r);
+                }
+                None => {}
+            }
+            offset += rela.header.sh_entsize.usize();
+        }
+
+        rs.push((rela.name.clone(), relocs));
+    }
+
+    rs
 }
 
 pub fn read_elf(bytes: Vec<u8>) -> Elf {
@@ -169,7 +250,7 @@ pub fn read_elf(bytes: Vec<u8>) -> Elf {
         _ => panic!("bits unrecoginzed"),
     };
 
-    let mut reader = ByteReader::new(&bytes[5..], &bits);
+    let mut reader = ByteReader::new(&bytes[0x5..], &bits);
 
     let endian = match reader.byte() {
         0x1 => Endian::Little,

@@ -80,6 +80,34 @@ impl FromBytes for u32 {
     }
 }
 
+impl FromBytes for u64 {
+    type T = u64;
+    fn from_bytes(bytes: &[u8]) -> Self::T {
+        if bytes.len() != 8 {
+            panic!("unsupported byte array length");
+        }
+        let mut arr: [u8; 8] = unsafe { MaybeUninit::zeroed().assume_init() };
+        unsafe {
+            ptr::copy_nonoverlapping(bytes.as_ptr(), arr.as_mut_ptr(), 8);
+        }
+        u64::from_le_bytes(arr)
+    }
+}
+
+impl FromBytes for i64 {
+    type T = i64;
+    fn from_bytes(bytes: &[u8]) -> Self::T {
+        if bytes.len() != 8 {
+            panic!("unsupported byte array length");
+        }
+        let mut arr: [u8; 8] = unsafe { MaybeUninit::zeroed().assume_init() };
+        unsafe {
+            ptr::copy_nonoverlapping(bytes.as_ptr(), arr.as_mut_ptr(), 8);
+        }
+        i64::from_le_bytes(arr)
+    }
+}
+
 pub fn get_name(offset: usize, str_tab: &[u8]) -> String {
     let cs = ffi::CStr::from_bytes_until_nul(&str_tab[offset..]).expect("did not contain nul");
     let s = cs.to_str().expect("did not contain valid utf8");
