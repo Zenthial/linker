@@ -130,7 +130,7 @@ fn read_entry(
 
     let mut name = get_name(st_name as usize, str_tab);
     if ty == SymbolType::Section {
-        name = sections[(st_shndx ) as usize].name.clone();
+        name = sections[(st_shndx) as usize].name.clone();
     }
 
     SymbolTableEntry {
@@ -158,7 +158,7 @@ pub fn read_symtab(elf: &Elf) -> Vec<SymbolTableEntry> {
     let mut entries = vec![];
     let symbols = symtab.header.entries();
     let mut offset = 0; // we index one entry in, because the first
-                                                       // entry is always all 0s
+                        // entry is always all 0s
     for _ in 0..symbols {
         let bytes = &symtab.data[offset..offset + symtab.header.sh_entsize.usize()];
         entries.push(read_entry(bytes, bits, str_tab, &elf.sections));
@@ -189,7 +189,11 @@ pub struct Rela {
 
 impl Display for Rela {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:012x} {:?} {} {}", self.r_offset, self.r_ty, self.r_name, self.r_addend)
+        write!(
+            f,
+            "{:012x} {:?} {} {}",
+            self.r_offset, self.r_ty, self.r_name, self.r_addend
+        )
     }
 }
 
@@ -199,7 +203,7 @@ fn read_rela(mut reader: ByteReader, symbs: &Vec<SymbolTableEntry>) -> Rela {
     let r_info = reader.read(8, u64::from_bytes);
     let r_addend = reader.read(8, i64::from_bytes);
 
-    let r_sym = u32::from_u64(r_info >> 32).expect("bitshift error?") ;
+    let r_sym = u32::from_u64(r_info >> 32).expect("bitshift error?");
     let r_ty = u32::from_u64(r_info & 0xffffffff).expect("bit mask error?");
     let r_ty = match RelaType::from_u32(r_ty) {
         Some(ty) => ty,
@@ -329,7 +333,7 @@ pub fn read_elf(bytes: Vec<u8>) -> Elf {
     // 0x30 or 0x3C
     let sec_entries = reader.read(2, u16::from_bytes);
     // 0x32 or 0x3E
-    let sec_names_idx = reader.read(2, u16::from_bytes) as usize ; 
+    let sec_names_idx = reader.read(2, u16::from_bytes) as usize;
 
     let sections = read_sections(
         &bytes,
