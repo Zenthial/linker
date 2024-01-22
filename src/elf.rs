@@ -168,6 +168,13 @@ pub fn read_symtab(elf: &Elf) -> Vec<SymbolTableEntry> {
     entries
 }
 
+pub fn collect_unknown_symbols(entries: Vec<SymbolTableEntry>) -> Vec<SymbolTableEntry> {
+    entries
+        .into_iter()
+        .filter(|entry| entry.st_info.ty == SymbolType::NoType && entry.st_name != "")
+        .collect()
+}
+
 //Advanced Micro Devices X86-64 relocation types
 #[derive(Debug, FromPrimitive)]
 #[allow(non_camel_case_types)]

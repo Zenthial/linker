@@ -6,18 +6,16 @@ mod types;
 
 use std::fs;
 
-use crate::section::SectionType;
+// use crate::section::SectionType;
 
 fn main() {
+    // println!("{:?}", std::env::args());
     let files = [
-        // "samples/hello_world.o",
-        // "samples/zero.o",
-        // "samples/clo.o",
+        "samples/hello_world.o",
+        "samples/zero.o",
+        "samples/clo.o",
         "samples/more.o",
         "samples/fib.o",
-        // "samples/hello.o", // smaller rust ELF
-        // "samples/this.o", // this ELF is this programs ELF, though it may be outdated. it is
-        // just to check if we can read large elfs
     ];
 
     for file in files {
@@ -34,10 +32,11 @@ fn main() {
         // println!("");
 
         let symbols = elf::read_symtab(&elf);
-        for sym in symbols {
+        let needs_definition = elf::collect_unknown_symbols(symbols);
+        for sym in needs_definition {
             println!("  {sym:?}");
         }
-        // elf::read_relas(&elf);
+        elf::read_relas(&elf);
         println!("");
     }
 }
